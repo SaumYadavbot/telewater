@@ -16,7 +16,7 @@ from telewater.utils import download_image
 class HealthHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header("Content-type", "text/plain")
+        self.send_header("Content-Type", "text/plain")
         self.end_headers()
         self.wfile.write(b"OK")
 
@@ -25,61 +25,155 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 
 def run_web_server():
-    port = int(os.environ.get("PORT", "8080"))
+    port = int(os.environ.get("PORT", "10000"))
+
     try:
         server = HTTPServer(("0.0.0.0", port), HealthHandler)
-        print(f"HEALTH SERVER STARTED ON PORT {port}", flush=True)
+
+        print(
+            f"HEALTH SERVER STARTED ON 0.0.0.0:{port}",
+            flush=True
+        )
+
         server.serve_forever()
+
     except Exception as e:
-        print(f"HEALTH SERVER ERROR: {e}", flush=True)
+        print(
+            f"HEALTH SERVER ERROR: {type(e).__name__}: {e}",
+            flush=True
+        )
+        raise
 
 
 def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
-    print("BOT STARTING...", flush=True)
 
-    # Start Render health server
+    print("========================================", flush=True)
+    print("BOT STARTING...", flush=True)
+    print("========================================", flush=True)
+
+    # --------------------------------------------------
+    # 1. Start Render health server
+    # --------------------------------------------------
+
     threading.Thread(
         target=run_web_server,
         daemon=True
     ).start()
 
-    # Create bot working directory (avoid changing working directory globally)
+    print("HEALTH SERVER THREAD STARTED", flush=True)
+
+    # --------------------------------------------------
+    # 2. Create bot working directory
+    # --------------------------------------------------
+
     os.makedirs(name, exist_ok=True)
 
-    # Download watermark image
+    # Keep the original telewater behaviour.
+    # The watermark/event code may depend on the
+    # working directory.
+    os.chdir(name)
+
+    print(f"BOT WORKING DIRECTORY: {os.getcwd()}", flush=True)
+
+    # --------------------------------------------------
+    # 3. Download watermark image
+    # --------------------------------------------------
+
     print("DOWNLOADING WATERMARK IMAGE...", flush=True)
+
     try:
         download_image(url=conf.config.watermark)
-        print("IMAGE DOWNLOAD COMPLETE", flush=True)
+
+        print(
+            "IMAGE DOWNLOAD COMPLETE",
+            flush=True
+        )
+
     except Exception as e:
-        print(f"IMAGE DOWNLOAD FAILED: {e}", flush=True)
+        print(
+            f"IMAGE DOWNLOAD ERROR: {type(e).__name__}: {e}",
+            flush=True
+        )
+        raise
 
-    # Create Telegram client using path inside session folder
+    # --------------------------------------------------
+    # 4. Create Telegram client
+    # --------------------------------------------------
+
     print("CREATING TELEGRAM CLIENT...", flush=True)
-    session_path = os.path.join(name, name)
-    client = TelegramClient(session_path, API_ID, API_HASH)
 
-    print("TELEGRAM CLIENT CREATED", flush=True)
+    client = TelegramClient(
+        name,
+        API_ID,
+        API_HASH
+    )
 
-    # Start Telegram bot
+    print(
+        "TELEGRAM CLIENT CREATED",
+        flush=True
+    )
+
+    # --------------------------------------------------
+    # 5. Login Telegram bot
+    # --------------------------------------------------
+
     while True:
-        try:
-            print("STARTING TELEGRAM BOT...", flush=True)
-            client.start(bot_token=token)
-            print("TELEGRAM BOT LOGIN COMPLETE", flush=True)
-            break
-        except FloodWaitError as e:
-            wait_time = int(e.seconds) + 10
-            print(f"TELEGRAM FLOOD WAIT: {e.seconds} seconds requested.", flush=True)
-            print(f"WAITING {wait_time} SECONDS BEFORE RETRYING...", flush=True)
-            time.sleep(wait_time)
-        except Exception as e:
-            print(f"TELEGRAM STARTUP ERROR: {type(e).__name__}: {e}", flush=True)
-            raise e
 
-    # Set Telegram bot commands
+        try:
+            print(
+                "STARTING TELEGRAM BOT...",
+                flush=True
+            )
+
+            client.start(
+                bot_token=token
+            )
+
+            print(
+                "TELEGRAM BOT LOGIN COMPLETE",
+                flush=True
+            )
+
+            break
+
+        except FloodWaitError as e:
+
+            wait_time = int(e.seconds) + 10
+
+            print(
+                f"TELEGRAM FLOOD WAIT: "
+                f"{e.seconds} seconds requested.",
+                flush=True
+            )
+
+            print(
+                f"WAITING {wait_time} SECONDS BEFORE RETRYING...",
+                flush=True
+            )
+
+            time.sleep(wait_time)
+
+        except Exception as e:
+
+            print(
+                f"TELEGRAM STARTUP ERROR: "
+                f"{type(e).__name__}: {e}",
+                flush=True
+            )
+
+            raise
+
+    # --------------------------------------------------
+    # 6. Set Telegram bot commands
+    # --------------------------------------------------
+
+    print(
+        "SETTING BOT COMMANDS...",
+        flush=True
+    )
+
     try:
-        print("SETTING BOT COMMANDS...", flush=True)
+
         client(
             functions.bots.SetBotCommandsRequest(
                 scope=types.BotCommandScopeDefault(),
@@ -93,24 +187,88 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
                 ]
             )
         )
-        print("BOT COMMANDS SET", flush=True)
-    except Exception as e:
-        print(f"FAILED TO SET COMMANDS: {e}", flush=True)
 
-    # Register all bot event handlers
-    print("REGISTERING BOT EVENTS...", flush=True)
+        print(
+            "BOT COMMANDS SET",
+            flush=True
+        )
+
+    except FloodWaitError as e:
+
+        print(
+            f"FLOOD WAIT WHILE SETTING COMMANDS: "
+            f"{e.seconds} seconds",
+            flush=True
+        )
+
+        print(
+            "CONTINUING WITHOUT UPDATING COMMAND MENU...",
+            flush=True
+        )
+
+    except Exception as e:
+
+        print(
+            f"BOT COMMAND SETTING ERROR: "
+            f"{type(e).__name__}: {e}",
+            flush=True
+        )
+
+        print(
+            "CONTINUING TO EVENT REGISTRATION...",
+            flush=True
+        )
+
+    # --------------------------------------------------
+    # 7. Register all bot events
+    # --------------------------------------------------
+
+    print(
+        "REGISTERING BOT EVENTS...",
+        flush=True
+    )
+
     for key, val in ALL_EVENTS.items():
-        print(f"ADDING EVENT: {key}", flush=True)
+
+        print(
+            f"ADDING EVENT: {key}",
+            flush=True
+        )
+
         client.add_event_handler(*val)
 
-    print("ALL BOT EVENTS REGISTERED", flush=True)
-    print(f"BOT IS FULLY STARTED: {name}", flush=True)
+    print(
+        "ALL BOT EVENTS REGISTERED",
+        flush=True
+    )
 
-    # Keep bot running
+    # --------------------------------------------------
+    # 8. Bot is fully ready
+    # --------------------------------------------------
+
+    print("========================================", flush=True)
+
+    print(
+        f"TELEGRAM BOT IS FULLY STARTED: {name}",
+        flush=True
+    )
+
+    print(
+        "WAITING FOR TELEGRAM UPDATES...",
+        flush=True
+    )
+
+    print("========================================", flush=True)
+
+    # --------------------------------------------------
+    # 9. Keep bot running
+    # --------------------------------------------------
+
     client.run_until_disconnected()
 
 
 if __name__ == "__main__":
+
     start_bot(
         int(os.environ["API_ID"]),
         os.environ["API_HASH"],
