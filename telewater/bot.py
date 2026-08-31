@@ -66,6 +66,8 @@ def create_text_watermark(
     # username = 0.0408
     # -----------------------------------------------------
 
+    # 20% larger target size, but automatically reduce only when
+    # necessary so the complete "ETERNAL CIVIL ACADEMY" text fits.
     title_size = max(
         32,
         int(watermark_width * 0.078),
@@ -84,6 +86,31 @@ def create_text_watermark(
         "/usr/share/fonts/truetype/dejavu/"
         "DejaVuSans-Bold.ttf"
     )
+
+    # Make sure the complete title fits inside the transparent layer.
+    # This prevents the first/last letters from being clipped after
+    # increasing the font size by 20%.
+    while True:
+        test_font = ImageFont.truetype(
+            font_path,
+            title_size,
+        )
+
+        test_bbox = ImageDraw.Draw(
+            Image.new("RGBA", (1, 1))
+        ).textbbox(
+            (0, 0),
+            WATERMARK_TEXT,
+            font=test_font,
+            stroke_width=2,
+        )
+
+        test_width = test_bbox[2] - test_bbox[0]
+
+        if test_width <= watermark_width - 40 or title_size <= 32:
+            break
+
+        title_size -= 1
 
     title_font = ImageFont.truetype(
         font_path,
