@@ -1,7 +1,7 @@
 """ This module defines the constants or default values.
 """
 from pydantic import BaseModel, validator
-from watermark import Position
+from .watermark import Position
 
 
 class Config(BaseModel):
