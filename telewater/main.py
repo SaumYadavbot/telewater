@@ -57,5 +57,5 @@ if __name__ == "__main__":
         int(os.environ["API_ID"]),
         os.environ["API_HASH"],
         os.environ.get("BOT_NAME", "telewater"),
-        os.environ["BOT_TOKEN"],
+        os.environ["API_TOKEN"],
     )
