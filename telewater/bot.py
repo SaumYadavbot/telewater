@@ -18,101 +18,127 @@ from telewater.utils import cleanup, get_args, gen_kv_str, stamp
 WATERMARK_TEXT = "ETERNAL CIVIL ACADEMY"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
 
-WATERMARK_OPACITY = 51   # 20% of 255
-WATERMARK_ANGLE = -12    # Slightly tilted
+# 25% opacity
+WATERMARK_OPACITY = 64
 
+# Slightly tilted
+WATERMARK_ANGLE = -12
+
+
+# =========================================================
+# CREATE TEXT WATERMARK
+# =========================================================
 
 def create_text_watermark(
+    media_width,
+    media_height,
     filename="text_watermark.png",
-    width=1800,
-    height=500,
 ):
-    """Create a transparent diagonal text watermark."""
+    """
+    Create a responsive text watermark.
 
-    transparent = Image.new(
-        "RGBA",
-        (width, height),
-        (255, 255, 255, 0),
+    The watermark size is calculated from the original
+    media dimensions so it does not become excessively
+    large on smaller images.
+    """
+
+    # -----------------------------------------------------
+    # Watermark width = about 65% of original media width.
+    # This keeps the complete text visible.
+    # -----------------------------------------------------
+
+    watermark_width = int(media_width * 0.65)
+
+    # Safety limits
+    watermark_width = max(500, watermark_width)
+    watermark_width = min(1800, watermark_width)
+
+    # -----------------------------------------------------
+    # Font sizes based on watermark width.
+    # -----------------------------------------------------
+
+    title_size = max(
+        32,
+        int(watermark_width * 0.065),
+    )
+
+    username_size = max(
+        22,
+        int(watermark_width * 0.034),
+    )
+
+    font_path = (
+        "/usr/share/fonts/truetype/dejavu/"
+        "DejaVuSans-Bold.ttf"
+    )
+
+    title_font = ImageFont.truetype(
+        font_path,
+        title_size,
+    )
+
+    username_font = ImageFont.truetype(
+        font_path,
+        username_size,
+    )
+
+    # -----------------------------------------------------
+    # Create temporary drawing layer.
+    # -----------------------------------------------------
+
+    temp_height = int(
+        title_size * 2.8
+        + username_size * 1.8
+        + 80
     )
 
     layer = Image.new(
         "RGBA",
-        (width, height),
+        (
+            watermark_width,
+            temp_height,
+        ),
         (255, 255, 255, 0),
     )
 
     draw = ImageDraw.Draw(layer)
 
-    # Use a standard font available on Render.
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    # -----------------------------------------------------
+    # Calculate title size.
+    # -----------------------------------------------------
 
-    title_font = ImageFont.truetype(
-        font_path,
-        110,
-    )
-
-    username_font = ImageFont.truetype(
-        font_path,
-        58,
-    )
-
-    # Main text
     title_bbox = draw.textbbox(
         (0, 0),
         WATERMARK_TEXT,
         font=title_font,
+        stroke_width=2,
     )
 
-    title_width = title_bbox[2] - title_bbox[0]
-    title_height = title_bbox[3] - title_bbox[1]
-
-    title_x = (width - title_width) // 2
-    title_y = 150
-
-    draw.text(
-        (title_x, title_y),
-        WATERMARK_TEXT,
-        font=title_font,
-        fill=(
-            255,
-            255,
-            255,
-            WATERMARK_OPACITY,
-        ),
-        stroke_width=3,
-        stroke_fill=(
-            0,
-            0,
-            0,
-            WATERMARK_OPACITY,
-        ),
+    title_width = (
+        title_bbox[2] - title_bbox[0]
     )
 
-    # Username
-    username_bbox = draw.textbbox(
-        (0, 0),
-        WATERMARK_USERNAME,
-        font=username_font,
+    title_height = (
+        title_bbox[3] - title_bbox[1]
     )
 
-    username_width = (
-        username_bbox[2] - username_bbox[0]
-    )
-
-    username_x = (
-        width - username_width
+    title_x = (
+        watermark_width - title_width
     ) // 2
 
-    username_y = (
-        title_y
-        + title_height
-        + 15
-    )
+    title_y = 20
+
+    # -----------------------------------------------------
+    # Main watermark text
+    # -----------------------------------------------------
 
     draw.text(
-        (username_x, username_y),
-        WATERMARK_USERNAME,
-        font=username_font,
+        (
+            title_x,
+            title_y,
+        ),
+        WATERMARK_TEXT,
+        font=title_font,
         fill=(
             255,
             255,
@@ -128,12 +154,104 @@ def create_text_watermark(
         ),
     )
 
-    # Slight diagonal rotation
+    # -----------------------------------------------------
+    # Username
+    # -----------------------------------------------------
+
+    username_bbox = draw.textbbox(
+        (0, 0),
+        WATERMARK_USERNAME,
+        font=username_font,
+        stroke_width=1,
+    )
+
+    username_width = (
+        username_bbox[2]
+        - username_bbox[0]
+    )
+
+    username_x = (
+        watermark_width
+        - username_width
+    ) // 2
+
+    username_y = (
+        title_y
+        + title_height
+        + 12
+    )
+
+    draw.text(
+        (
+            username_x,
+            username_y,
+        ),
+        WATERMARK_USERNAME,
+        font=username_font,
+        fill=(
+            255,
+            255,
+            255,
+            WATERMARK_OPACITY,
+        ),
+        stroke_width=1,
+        stroke_fill=(
+            0,
+            0,
+            0,
+            WATERMARK_OPACITY,
+        ),
+    )
+
+    # -----------------------------------------------------
+    # Rotate slightly.
+    # expand=True prevents text from being cut.
+    # -----------------------------------------------------
+
     rotated = layer.rotate(
         WATERMARK_ANGLE,
         expand=True,
         resample=Image.Resampling.BICUBIC,
     )
+
+    # -----------------------------------------------------
+    # Make sure rotated watermark is not unnecessarily
+    # larger than the original media.
+    # -----------------------------------------------------
+
+    max_width = int(
+        media_width * 0.78
+    )
+
+    max_height = int(
+        media_height * 0.35
+    )
+
+    scale = min(
+        1.0,
+        max_width / rotated.width,
+        max_height / rotated.height,
+    )
+
+    if scale < 1.0:
+
+        new_width = max(
+            1,
+            int(rotated.width * scale),
+        )
+
+        new_height = max(
+            1,
+            int(rotated.height * scale),
+        )
+
+        rotated = rotated.resize(
+            (
+                new_width,
+                new_height,
+            ),
+            Image.Resampling.LANCZOS,
+        )
 
     rotated.save(
         filename,
@@ -141,8 +259,8 @@ def create_text_watermark(
     )
 
     print(
-        "Text watermark created successfully "
-        "(20% opacity, slightly tilted).",
+        "25% opacity responsive text watermark "
+        "created successfully.",
         flush=True,
     )
 
@@ -154,7 +272,11 @@ def create_text_watermark(
 # =========================================================
 
 async def start(event):
-    await event.respond(conf.START)
+
+    await event.respond(
+        conf.START
+    )
+
     raise events.StopPropagation
 
 
@@ -163,9 +285,15 @@ async def start(event):
 # =========================================================
 
 async def bot_help(event):
+
     try:
-        await event.respond(conf.HELP)
+
+        await event.respond(
+            conf.HELP
+        )
+
     finally:
+
         raise events.StopPropagation
 
 
@@ -179,10 +307,10 @@ async def set_config(event):
 This command is used to set the value of a config variable.
 
 Usage:
-`/set key: value`
+/set key: value
 
 Example:
-`/set position: centre`
+/set position: centre
 
 {gen_kv_str()}
 """.replace(
@@ -197,7 +325,10 @@ Example:
         )
 
         if not pos_arg:
-            raise ValueError(notes)
+
+            raise ValueError(
+                notes
+            )
 
         splitted = pos_arg.split(
             ":",
@@ -205,6 +336,7 @@ Example:
         )
 
         if len(splitted) != 2:
+
             raise ValueError(
                 "Incorrect argument format"
             )
@@ -214,9 +346,12 @@ Example:
             for item in splitted
         ]
 
-        config_dict = conf.config.dict()
+        config_dict = (
+            conf.config.dict()
+        )
 
         if key not in config_dict.keys():
+
             raise ValueError(
                 f"The key {key} is not a valid "
                 f"key in configuration."
@@ -258,6 +393,7 @@ Example:
         )
 
     finally:
+
         raise events.StopPropagation
 
 
@@ -271,10 +407,10 @@ async def get_config(event):
 This command is used to get the value of a configuration variable.
 
 Usage:
-`/get key`
+/get key
 
 Example:
-`/get position`
+/get position
 
 {gen_kv_str()}
 """.replace(
@@ -289,12 +425,19 @@ Example:
         )
 
         if not key:
-            raise ValueError(notes)
 
-        config_dict = conf.config.dict()
+            raise ValueError(
+                notes
+            )
+
+        config_dict = (
+            conf.config.dict()
+        )
 
         await event.respond(
-            str(config_dict.get(key))
+            str(
+                config_dict.get(key)
+            )
         )
 
     except ValueError as err:
@@ -309,6 +452,7 @@ Example:
         )
 
     finally:
+
         raise events.StopPropagation
 
 
@@ -344,9 +488,9 @@ async def watermarker(event):
 
     try:
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # Download original media
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         downloaded_file = (
             await event.download_media("")
@@ -363,7 +507,9 @@ async def watermarker(event):
 
         org_file = stamp(
             downloaded_file,
-            user=str(event.sender_id),
+            user=str(
+                event.sender_id
+            ),
         )
 
         print(
@@ -371,24 +517,83 @@ async def watermarker(event):
             flush=True,
         )
 
-        # ---------------------------------------------
-        # Create TEXT watermark
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Get original media dimensions
+        # -------------------------------------------------
 
-        watermark_file = create_text_watermark(
-            filename="text_watermark.png"
+        media_width = 1280
+        media_height = 720
+
+        try:
+
+            # For photos, PIL can directly read dimensions.
+            if event.photo:
+
+                with Image.open(
+                    org_file
+                ) as original_image:
+
+                    media_width, media_height = (
+                        original_image.size
+                    )
+
+            else:
+
+                # For videos/GIFs, use a safe default.
+                # The watermark is still kept reasonably sized.
+                media_width = 1280
+                media_height = 720
+
+        except Exception as dimension_error:
+
+            print(
+                "Could not determine media dimensions: "
+                f"{type(dimension_error).__name__}: "
+                f"{dimension_error}",
+                flush=True,
+            )
+
+        print(
+            f"Original media size: "
+            f"{media_width}x{media_height}",
+            flush=True,
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
+        # Create responsive text watermark
+        # -------------------------------------------------
+
+        watermark_file = (
+            create_text_watermark(
+                media_width=media_width,
+                media_height=media_height,
+                filename="text_watermark.png",
+            )
+        )
+
+        if not watermark_file or not os.path.exists(
+            watermark_file
+        ):
+
+            print(
+                "Text watermark file was not created.",
+                flush=True,
+            )
+
+            return
+
+        # -------------------------------------------------
         # Apply watermark
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         file = File(
             org_file
         )
 
         wtm = Watermark(
-            File(watermark_file),
+            File(
+                watermark_file
+            ),
             pos=conf.config.position,
         )
 
@@ -414,18 +619,18 @@ async def watermarker(event):
             flush=True,
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # Preserve original caption
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         caption = (
             event.message.message
             or None
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # Send to SAME CHANNEL
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         sent_message = (
             await event.client.send_file(
@@ -442,9 +647,9 @@ async def watermarker(event):
             flush=True,
         )
 
-        # ---------------------------------------------
+        # -------------------------------------------------
         # Delete ORIGINAL message
-        # ---------------------------------------------
+        # -------------------------------------------------
 
         try:
 
@@ -488,7 +693,10 @@ async def watermarker(event):
 
     finally:
 
-        # Never try to os.remove(None)
+        # -------------------------------------------------
+        # Clean up only valid file paths.
+        # -------------------------------------------------
+
         cleanup(
             org_file,
             out_file,
