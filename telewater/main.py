@@ -27,7 +27,8 @@ def run_web_server():
     server = HTTPServer(("0.0.0.0", port), HealthHandler)
     server.serve_forever()
 def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
-   threading.Thread(target=run_web_server, daemon=True).start()
+    threading.Thread(target=run_web_server, daemon=True).start()
+
     os.makedirs(name, exist_ok=True)
     os.chdir(name)
 
