@@ -27,7 +27,7 @@ def download_image(url: str, filename: str = "image.png") -> bool:
 
         print(f"Watermark file created: {filename}", flush=True)
 
-        # Create a 15% opacity version.
+        # Create a 20% opacity version.
         # watermark.py uses FFmpeg internally, so FFmpeg is already
         # required by this project.
         transparent_filename = "watermark_15.png"
@@ -39,7 +39,7 @@ def download_image(url: str, filename: str = "image.png") -> bool:
                 "-i",
                 filename,
                 "-vf",
-                "format=rgba,colorchannelmixer=aa=0.15",
+                "format=rgba,colorchannelmixer=aa=0.20",
                 transparent_filename,
             ],
             stdout=subprocess.PIPE,
