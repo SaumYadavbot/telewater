@@ -23,7 +23,7 @@ WATERMARK_USERNAME = "@EternalCivilAcademy"
 WATERMARK_OPACITY = 77
 
 # Slightly tilted
-WATERMARK_ANGLE = -12
+WATERMARK_ANGLE = -15
 
 
 # =========================================================
