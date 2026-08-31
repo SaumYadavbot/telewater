@@ -3,59 +3,81 @@
 import logging
 import os
 import re
-import shutil
-import subprocess
 from datetime import datetime
 
-import requests
+from PIL import Image, ImageDraw, ImageFont
 
 from telewater import conf
 
 
-def download_image(url: str, filename: str = "image.png") -> bool:
+def create_text_watermark(
+    text: str = "ETERNAL CIVIL ACADEMY",
+    filename: str = "image.png",
+    opacity: int = 30,
+) -> bool:
+    """
+    Creates a transparent text watermark image.
+
+    Opacity:
+        0   = invisible
+        30  = 30% opacity
+        100 = fully visible
+    """
+
     try:
-        print("Downloading watermark image ...", flush=True)
+        # 30% opacity = approximately 51/255
+        alpha = int(255 * (opacity / 100))
 
-        response = requests.get(url, stream=True, timeout=30)
-        response.raise_for_status()
+        # Transparent watermark canvas
+        width = 1000
+        height = 180
 
-        print("Got watermark file response", flush=True)
-
-        with open(filename, "wb") as file:
-            response.raw.decode_content = True
-            shutil.copyfileobj(response.raw, file)
-
-        print(f"Watermark file created: {filename}", flush=True)
-
-        # Create a 25% opacity version.
-        # watermark.py uses FFmpeg internally, so FFmpeg is already
-        # required by this project.
-        transparent_filename = "watermark_15.png"
-
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                filename,
-                "-vf",
-                "format=rgba,colorchannelmixer=aa=0.25",
-                transparent_filename,
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        watermark = Image.new(
+            "RGBA",
+            (width, height),
+            (0, 0, 0, 0),
         )
 
-        if result.returncode != 0:
-            print(
-                f"FFmpeg watermark opacity error: {result.stderr}",
-                flush=True,
-            )
-            return False
+        draw = ImageDraw.Draw(watermark)
+
+        # Try common Linux fonts available on Render
+        font_paths = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+        ]
+
+        font = None
+
+        for path in font_paths:
+            if os.path.exists(path):
+                font = ImageFont.truetype(path, 64)
+                break
+
+        # Fallback font
+        if font is None:
+            font = ImageFont.load_default()
+
+        # Calculate text size
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        x = (width - text_width) // 2
+        y = (height - text_height) // 2
+
+        # White text with 20% opacity
+        draw.text(
+            (x, y),
+            text,
+            font=font,
+            fill=(255, 255, 255, alpha),
+        )
+
+        # Save transparent PNG
+        watermark.save(filename, "PNG")
 
         print(
-            "15% opacity watermark created successfully",
+            f"{opacity}% opacity text watermark created successfully",
             flush=True,
         )
 
@@ -63,10 +85,34 @@ def download_image(url: str, filename: str = "image.png") -> bool:
 
     except Exception as err:
         print(
-            f"Watermark download/processing error: {type(err).__name__}: {err}",
+            f"TEXT WATERMARK ERROR: {type(err).__name__}: {err}",
             flush=True,
         )
         return False
+
+
+def download_image(url: str, filename: str = "image.png") -> bool:
+    """
+    Kept with the old function name so the existing bot code
+    does not need to be changed.
+
+    Instead of downloading an external image, it now creates
+    the text watermark locally.
+    """
+
+    # Remove old watermark so every deployment gets a fresh one
+    try:
+        if os.path.exists(filename):
+            os.remove(filename)
+            print("Old watermark removed", flush=True)
+    except Exception as err:
+        print(f"Could not remove old watermark: {err}", flush=True)
+
+    return create_text_watermark(
+        text="ETERNAL CIVIL ACADEMY",
+        filename=filename,
+        opacity=30,
+    )
 
 
 def get_args(text: str):
@@ -92,18 +138,13 @@ def cleanup(*files):
             os.remove(file)
         except FileNotFoundError:
             logging.info(f"File {file} does not exist.")
-        except Exception as err:
-            logging.warning(
-                f"Could not remove {file}: {err}"
-            )
 
 
 def stamp(file: str, user: str):
+
     now = str(datetime.now())
 
-    outf = safe_name(
-        f"{user} {now} {file}"
-    )
+    outf = safe_name(f"{user} {now} {file}")
 
     try:
         os.rename(file, outf)
@@ -113,7 +154,6 @@ def stamp(file: str, user: str):
         logging.warning(
             f"Stamping file name failed for {file} to {outf}: {err}"
         )
-        return file
 
 
 def safe_name(file_name: str):
