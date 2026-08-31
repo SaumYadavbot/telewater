@@ -51,3 +51,11 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
 
     print(f"Started bot {name}")
     client.run_until_disconnected()
+
+if __name__ == "__main__":
+    start_bot(
+        int(os.environ["API_ID"]),
+        os.environ["API_HASH"],
+        os.environ.get("BOT_NAME", "telewater"),
+        os.environ["BOT_TOKEN"],
+    )
