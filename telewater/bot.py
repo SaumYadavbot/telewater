@@ -26,13 +26,19 @@ WATERMARK_OPACITY = 153
 # Slightly tilted
 WATERMARK_ANGLE = -15
 
-# Watermark diagonal will be approximately 75%
-# of the original media diagonal.
+# Visible watermark diagonal:
+# approximately 75% of original image diagonal
 WATERMARK_DIAGONAL_RATIO = 0.75
+
+# Render watermark at 4K resolution before scaling
+WATERMARK_RENDER_WIDTH = 3840
+
+# Minimum Full-HD output for photos
+MINIMUM_FULL_HD = 1920
 
 
 # =========================================================
-# CREATE TEXT WATERMARK
+# CREATE HIGH-RESOLUTION TEXT WATERMARK
 # =========================================================
 
 def create_text_watermark(
@@ -41,29 +47,16 @@ def create_text_watermark(
     filename="text_watermark.png",
 ):
     """
-    Create a large diagonal-based text watermark.
+    Creates a high-resolution watermark.
 
-    The final rotated watermark occupies approximately
-    75% of the original media diagonal.
-
-    The complete text is always fitted inside the
-    watermark layer so that no letters are clipped.
+    Features:
+    - 60% opacity
+    - 30%+ larger text target
+    - Complete title always visible
+    - Visible watermark diagonal approximately 75%
+      of the original image diagonal
+    - Rendered at 4K before final scaling
     """
-
-    # -----------------------------------------------------
-    # ORIGINAL MEDIA DIAGONAL
-    # -----------------------------------------------------
-
-    media_diagonal = math.sqrt(
-        (media_width ** 2)
-        + (media_height ** 2)
-    )
-
-    # Target watermark diagonal
-    target_diagonal = (
-        media_diagonal
-        * WATERMARK_DIAGONAL_RATIO
-    )
 
     # -----------------------------------------------------
     # FONT
@@ -75,72 +68,51 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # INITIAL WATERMARK SIZE
+    # HIGH-RESOLUTION WORKING CANVAS
     # -----------------------------------------------------
-    #
-    # Start with a large canvas.
-    # The final size will be calculated from the
-    # diagonal after rotation.
-    #
 
-    watermark_width = int(
-        media_width * 0.90
+    canvas_width = WATERMARK_RENDER_WIDTH
+
+    # Initial font target:
+    #
+    # Original = 0.065
+    # 30% larger = 0.0845
+
+    title_size = int(
+        canvas_width * 0.0845
     )
 
-    watermark_width = max(
-        watermark_width,
-        600,
+    username_size = int(
+        canvas_width * 0.0442
     )
-
-    watermark_width = min(
-        watermark_width,
-        2400,
-    )
-
-    # -----------------------------------------------------
-    # FONT SIZE
-    # -----------------------------------------------------
-    #
-    # Original title ratio was 0.065.
-    # New target is approximately 30% larger:
-    #
-    # 0.065 x 1.30 = 0.0845
-    #
 
     title_size = max(
-        32,
-        int(watermark_width * 0.0845),
+        60,
+        title_size,
     )
 
     username_size = max(
-        22,
-        int(watermark_width * 0.0442),
+        40,
+        username_size,
     )
 
     # -----------------------------------------------------
-    # TEMP DRAWING OBJECT FOR MEASUREMENT
+    # MEASUREMENT CANVAS
     # -----------------------------------------------------
 
-    measure_layer = Image.new(
+    measure_image = Image.new(
         "RGBA",
         (1, 1),
-        (255, 255, 255, 0),
+        (0, 0, 0, 0),
     )
 
     measure_draw = ImageDraw.Draw(
-        measure_layer
+        measure_image
     )
 
     # -----------------------------------------------------
-    # FIT COMPLETE TITLE
+    # MAKE SURE COMPLETE TITLE FITS
     # -----------------------------------------------------
-    #
-    # This makes sure the complete:
-    #
-    # ETERNAL CIVIL ACADEMY
-    #
-    # fits inside the watermark.
-    #
 
     while True:
 
@@ -149,27 +121,23 @@ def create_text_watermark(
             title_size,
         )
 
-        title_bbox = measure_draw.textbbox(
+        bbox = measure_draw.textbbox(
             (0, 0),
             WATERMARK_TEXT,
             font=test_font,
-            stroke_width=2,
+            stroke_width=6,
         )
 
-        title_width = (
-            title_bbox[2]
-            - title_bbox[0]
+        text_width = (
+            bbox[2] - bbox[0]
         )
 
-        if (
-            title_width
-            <= watermark_width - 80
-        ):
+        if text_width <= canvas_width - 240:
             break
 
         title_size -= 1
 
-        if title_size <= 32:
+        if title_size <= 60:
             break
 
     title_font = ImageFont.truetype(
@@ -183,82 +151,90 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # GET TITLE DIMENSIONS
+    # TEXT DIMENSIONS
     # -----------------------------------------------------
 
     title_bbox = measure_draw.textbbox(
         (0, 0),
         WATERMARK_TEXT,
         font=title_font,
-        stroke_width=2,
+        stroke_width=6,
     )
 
     title_width = (
-        title_bbox[2]
-        - title_bbox[0]
+        title_bbox[2] - title_bbox[0]
     )
 
     title_height = (
-        title_bbox[3]
-        - title_bbox[1]
+        title_bbox[3] - title_bbox[1]
     )
-
-    # -----------------------------------------------------
-    # USERNAME DIMENSIONS
-    # -----------------------------------------------------
 
     username_bbox = measure_draw.textbbox(
         (0, 0),
         WATERMARK_USERNAME,
         font=username_font,
-        stroke_width=1,
+        stroke_width=4,
     )
 
     username_width = (
-        username_bbox[2]
-        - username_bbox[0]
+        username_bbox[2] - username_bbox[0]
     )
 
     username_height = (
-        username_bbox[3]
-        - username_bbox[1]
+        username_bbox[3] - username_bbox[1]
     )
 
     # -----------------------------------------------------
-    # CANVAS HEIGHT
+    # TIGHT CANVAS AROUND TEXT
     # -----------------------------------------------------
+    #
+    # Important:
+    # We don't use a huge transparent canvas for the
+    # final diagonal calculation.
+    #
+    # This means the ACTUAL visible watermark becomes
+    # approximately 75% of the image diagonal.
 
-    temp_height = int(
+    padding_x = 120
+    padding_y = 100
+
+    layer_width = (
+        max(
+            title_width,
+            username_width,
+        )
+        + (padding_x * 2)
+    )
+
+    layer_height = (
         title_height
         + username_height
         + 80
+        + (padding_y * 2)
     )
-
-    # -----------------------------------------------------
-    # CREATE TRANSPARENT LAYER
-    # -----------------------------------------------------
 
     layer = Image.new(
         "RGBA",
         (
-            watermark_width,
-            temp_height,
+            layer_width,
+            layer_height,
         ),
-        (255, 255, 255, 0),
+        (0, 0, 0, 0),
     )
 
-    draw = ImageDraw.Draw(layer)
+    draw = ImageDraw.Draw(
+        layer
+    )
 
     # -----------------------------------------------------
-    # CENTER TITLE
+    # TITLE
     # -----------------------------------------------------
 
     title_x = (
-        watermark_width
-        - title_width
+        layer_width - title_width
     ) // 2
 
-    title_y = 20
+    title_y = padding_y
 
     draw.text(
         (
@@ -273,7 +249,7 @@ def create_text_watermark(
             255,
             WATERMARK_OPACITY,
         ),
-        stroke_width=2,
+        stroke_width=6,
         stroke_fill=(
             0,
             0,
@@ -283,18 +259,17 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # CENTER USERNAME
+    # USERNAME
     # -----------------------------------------------------
 
     username_x = (
-        watermark_width
-        - username_width
+        layer_width - username_width
     ) // 2
 
     username_y = (
         title_y
         + title_height
-        + 14
+        + 30
     )
 
     draw.text(
@@ -310,7 +285,7 @@ def create_text_watermark(
             255,
             WATERMARK_OPACITY,
         ),
-        stroke_width=1,
+        stroke_width=4,
         stroke_fill=(
             0,
             0,
@@ -320,7 +295,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # ROTATE
+    # ROTATE AT HIGH RESOLUTION
     # -----------------------------------------------------
 
     rotated = layer.rotate(
@@ -330,17 +305,51 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # CURRENT WATERMARK DIAGONAL
+    # REMOVE EXCESS TRANSPARENT BORDER
+    # -----------------------------------------------------
+    #
+    # This makes diagonal calculation based on the actual
+    # visible watermark rather than an oversized canvas.
+
+    alpha = rotated.getchannel("A")
+
+    bbox = alpha.getbbox()
+
+    if bbox:
+
+        rotated = rotated.crop(
+            bbox
+        )
+
+    # -----------------------------------------------------
+    # ORIGINAL IMAGE DIAGONAL
     # -----------------------------------------------------
 
-    current_diagonal = math.sqrt(
-        (rotated.width ** 2)
-        + (rotated.height ** 2)
+    media_diagonal = math.hypot(
+        media_width,
+        media_height,
     )
 
     # -----------------------------------------------------
-    # SCALE TO EXACTLY APPROXIMATELY 75%
-    # OF ORIGINAL MEDIA DIAGONAL
+    # TARGET WATERMARK DIAGONAL
+    # -----------------------------------------------------
+
+    target_diagonal = (
+        media_diagonal
+        * WATERMARK_DIAGONAL_RATIO
+    )
+
+    # -----------------------------------------------------
+    # CURRENT VISIBLE WATERMARK DIAGONAL
+    # -----------------------------------------------------
+
+    current_diagonal = math.hypot(
+        rotated.width,
+        rotated.height,
+    )
+
+    # -----------------------------------------------------
+    # SCALE WATERMARK TO 75% DIAGONAL
     # -----------------------------------------------------
 
     if current_diagonal > 0:
@@ -350,75 +359,162 @@ def create_text_watermark(
             / current_diagonal
         )
 
-        new_width = max(
+        final_width = max(
             1,
-            int(rotated.width * scale),
+            int(
+                rotated.width
+                * scale
+            ),
         )
 
-        new_height = max(
+        final_height = max(
             1,
-            int(rotated.height * scale),
+            int(
+                rotated.height
+                * scale
+            ),
         )
 
         rotated = rotated.resize(
             (
-                new_width,
-                new_height,
+                final_width,
+                final_height,
             ),
             Image.Resampling.LANCZOS,
         )
 
     # -----------------------------------------------------
-    # FINAL SAFETY CHECK
-    # -----------------------------------------------------
-    #
-    # The watermark itself is never allowed to exceed
-    # the target diagonal.
-    #
-
-    final_diagonal = math.sqrt(
-        (rotated.width ** 2)
-        + (rotated.height ** 2)
-    )
-
-    if final_diagonal > target_diagonal:
-
-        scale = (
-            target_diagonal
-            / final_diagonal
-        )
-
-        rotated = rotated.resize(
-            (
-                max(
-                    1,
-                    int(rotated.width * scale),
-                ),
-                max(
-                    1,
-                    int(rotated.height * scale),
-                ),
-            ),
-            Image.Resampling.LANCZOS,
-        )
-
-    # -----------------------------------------------------
-    # SAVE
+    # SAVE LOSSLESS WATERMARK
     # -----------------------------------------------------
 
     rotated.save(
         filename,
         "PNG",
+        optimize=True,
     )
 
     print(
-        "60% opacity watermark created. "
-        "Watermark diagonal is approximately "
-        "75% of original media diagonal.",
+        "High-resolution watermark created: "
+        "60% opacity | 30%+ larger text | "
+        "75% diagonal",
         flush=True,
     )
 
     return filename
+
+
+# =========================================================
+# HIGH QUALITY PHOTO OUTPUT
+# =========================================================
+
+def prepare_high_quality_image(
+    input_path,
+    output_path,
+    minimum_long_side=MINIMUM_FULL_HD,
+):
+    """
+    Prepare final photo output.
+
+    If the processed image is smaller than Full HD,
+    it is enlarged to at least 1920px on its long side.
+
+    JPEG is saved at maximum quality with 4:4:4
+    chroma subsampling so text/watermark edges remain
+    as clean as possible.
+    """
+
+    with Image.open(
+        input_path
+    ) as image:
+
+        # -------------------------------------------------
+        # Convert safely to RGB
+        # -------------------------------------------------
+
+        if image.mode == "RGBA":
+
+            background = Image.new(
+                "RGB",
+                image.size,
+                (255, 255, 255),
+            )
+
+            background.paste(
+                image,
+                mask=image.getchannel("A"),
+            )
+
+            image = background
+
+        else:
+
+            image = image.convert(
+                "RGB"
+            )
+
+        # -------------------------------------------------
+        # ORIGINAL PROCESSED SIZE
+        # -------------------------------------------------
+
+        width, height = image.size
+
+        long_side = max(
+            width,
+            height,
+        )
+
+        # -------------------------------------------------
+        # UPSCALE TO FULL HD IF NEEDED
+        # -------------------------------------------------
+
+        if long_side < minimum_long_side:
+
+            scale = (
+                minimum_long_side
+                / long_side
+            )
+
+            new_width = max(
+                1,
+                int(
+                    width * scale
+                ),
+            )
+
+            new_height = max(
+                1,
+                int(
+                    height * scale
+                ),
+            )
+
+            image = image.resize(
+                (
+                    new_width,
+                    new_height,
+                ),
+                Image.Resampling.LANCZOS,
+            )
+
+        # -------------------------------------------------
+        # MAXIMUM JPEG QUALITY
+        # -------------------------------------------------
+
+        image.save(
+            output_path,
+            "JPEG",
+            quality=100,
+            subsampling=0,
+            optimize=True,
+        )
+
+        print(
+            f"Final image: "
+            f"{image.width}x{image.height} | "
+            f"JPEG quality 100 | "
+            f"4:4:4 chroma",
+            flush=True,
+        )
 
 
 # =========================================================
@@ -639,6 +735,7 @@ async def watermarker(event):
     org_file = None
     out_file = None
     watermark_file = None
+    high_quality_file = None
 
     try:
 
@@ -711,7 +808,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # CREATE LARGE DIAGONAL WATERMARK
+        # CREATE 4K HIGH-RESOLUTION WATERMARK
         # -------------------------------------------------
 
         watermark_file = (
@@ -722,19 +819,28 @@ async def watermarker(event):
             )
         )
 
-        if not watermark_file or not os.path.exists(
+        if not watermark_file:
+
+            print(
+                "Text watermark was not created.",
+                flush=True,
+            )
+
+            return
+
+        if not os.path.exists(
             watermark_file
         ):
 
             print(
-                "Text watermark file was not created.",
+                "Text watermark file does not exist.",
                 flush=True,
             )
 
             return
 
         print(
-            f"Text watermark ready: "
+            f"High-resolution watermark ready: "
             f"{watermark_file}",
             flush=True,
         )
@@ -775,6 +881,62 @@ async def watermarker(event):
             f"{out_file}",
             flush=True,
         )
+
+        # -------------------------------------------------
+        # HIGH QUALITY PHOTO PROCESSING
+        # -------------------------------------------------
+        #
+        # Only photos are processed here.
+        #
+        # Videos/GIFs continue using the existing
+        # apply_watermark output.
+
+        if event.photo:
+
+            try:
+
+                high_quality_file = (
+                    f"{out_file}.hq.jpg"
+                )
+
+                prepare_high_quality_image(
+                    input_path=out_file,
+                    output_path=high_quality_file,
+                    minimum_long_side=1920,
+                )
+
+                if os.path.exists(
+                    high_quality_file
+                ):
+
+                    # Remove old processed image.
+                    try:
+
+                        os.remove(
+                            out_file
+                        )
+
+                    except OSError:
+                        pass
+
+                    out_file = (
+                        high_quality_file
+                    )
+
+                    print(
+                        "High-quality Full-HD photo "
+                        "prepared successfully.",
+                        flush=True,
+                    )
+
+            except Exception as quality_error:
+
+                print(
+                    "High-quality photo processing failed: "
+                    f"{type(quality_error).__name__}: "
+                    f"{quality_error}",
+                    flush=True,
+                )
 
         # -------------------------------------------------
         # PRESERVE ORIGINAL CAPTION
@@ -858,6 +1020,7 @@ async def watermarker(event):
             org_file,
             out_file,
             watermark_file,
+            high_quality_file,
         )
 
 
