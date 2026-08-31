@@ -18,9 +18,8 @@ from telewater.utils import cleanup, get_args, gen_kv_str, stamp
 WATERMARK_TEXT = "ETERNAL CIVIL ACADEMY"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
 
-# 30% opacity
-# 255 x 0.30 = 76.5 -> 77
-WATERMARK_OPACITY = 77
+# Approximately 40% opacity
+WATERMARK_OPACITY = 102
 
 # Slightly tilted
 WATERMARK_ANGLE = -15
@@ -38,9 +37,9 @@ def create_text_watermark(
     """
     Create a responsive text watermark.
 
-    The watermark size is calculated from the
-    original media dimensions so it does not
-    become excessively large on smaller images.
+    Text is targeted to be at least 30% larger than
+    the original version, while automatically fitting
+    the complete text so no letters are clipped.
     """
 
     # -----------------------------------------------------
@@ -55,27 +54,24 @@ def create_text_watermark(
 
     # -----------------------------------------------------
     # Font sizes
-    # 20% larger than the previous version
+    # At least 30% larger than original
     #
-    # Previous:
-    # title    = 0.065
-    # username = 0.034
+    # Original title    = 0.065
+    # Original username = 0.034
     #
-    # New:
-    # title    = 0.078
-    # username = 0.0408
+    # New target:
+    # title    = 0.0845
+    # username = 0.0442
     # -----------------------------------------------------
 
-    # 20% larger target size, but automatically reduce only when
-    # necessary so the complete "ETERNAL CIVIL ACADEMY" text fits.
     title_size = max(
         32,
-        int(watermark_width * 0.078),
+        int(watermark_width * 0.0845),
     )
 
     username_size = max(
         22,
-        int(watermark_width * 0.0408),
+        int(watermark_width * 0.0442),
     )
 
     # -----------------------------------------------------
@@ -87,27 +83,50 @@ def create_text_watermark(
         "DejaVuSans-Bold.ttf"
     )
 
-    # Make sure the complete title fits inside the transparent layer.
-    # This prevents the first/last letters from being clipped after
-    # increasing the font size by 20%.
+    # -----------------------------------------------------
+    # IMPORTANT:
+    # Automatically reduce ONLY if the complete title
+    # does not fit. This prevents:
+    #
+    # ETERNAL CIVIL ACADEMY
+    #
+    # from being clipped on either side.
+    # -----------------------------------------------------
+
     while True:
+
         test_font = ImageFont.truetype(
             font_path,
             title_size,
         )
 
-        test_bbox = ImageDraw.Draw(
-            Image.new("RGBA", (1, 1))
-        ).textbbox(
+        test_layer = Image.new(
+            "RGBA",
+            (1, 1),
+            (255, 255, 255, 0),
+        )
+
+        test_draw = ImageDraw.Draw(
+            test_layer
+        )
+
+        test_bbox = test_draw.textbbox(
             (0, 0),
             WATERMARK_TEXT,
             font=test_font,
             stroke_width=2,
         )
 
-        test_width = test_bbox[2] - test_bbox[0]
+        test_width = (
+            test_bbox[2]
+            - test_bbox[0]
+        )
 
-        if test_width <= watermark_width - 40 or title_size <= 32:
+        # 40px safety margin
+        if (
+            test_width <= watermark_width - 40
+            or title_size <= 32
+        ):
             break
 
         title_size -= 1
@@ -155,15 +174,18 @@ def create_text_watermark(
     )
 
     title_width = (
-        title_bbox[2] - title_bbox[0]
+        title_bbox[2]
+        - title_bbox[0]
     )
 
     title_height = (
-        title_bbox[3] - title_bbox[1]
+        title_bbox[3]
+        - title_bbox[1]
     )
 
     title_x = (
-        watermark_width - title_width
+        watermark_width
+        - title_width
     ) // 2
 
     title_y = 20
@@ -211,7 +233,8 @@ def create_text_watermark(
     )
 
     username_x = (
-        watermark_width - username_width
+        watermark_width
+        - username_width
     ) // 2
 
     username_y = (
@@ -300,8 +323,8 @@ def create_text_watermark(
     )
 
     print(
-        "30% opacity responsive text watermark "
-        "created successfully.",
+        "40% opacity, 30%+ larger responsive "
+        "text watermark created successfully.",
         flush=True,
     )
 
