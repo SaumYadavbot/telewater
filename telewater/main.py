@@ -35,20 +35,19 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
     os.makedirs(name, exist_ok=True)
     os.chdir(name)
 
-        print("BOT STARTING...")
+    print("BOT STARTING...")
 
     download_image(url=conf.config.watermark)
     print("IMAGE DOWNLOAD COMPLETE")
 
-    print("STARTING TELEGRAM...")
-    client = TelegramClient(name, API_ID, API_HASH).start(bot_token=token)
-    print("TELEGRAM BOT LOGIN COMPLETE")
+    print("CREATING TELEGRAM CLIENT...")
+    client = TelegramClient(name, API_ID, API_HASH)
 
     while True:
         try:
-            print("Starting Telegram bot...")
+            print("STARTING TELEGRAM...")
             client.start(bot_token=token)
-            print("Telegram bot authorization successful.")
+            print("TELEGRAM BOT LOGIN COMPLETE")
             break
 
         except FloodWaitError as e:
@@ -60,7 +59,10 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
             time.sleep(wait_time)
 
         except Exception as e:
-            print(f"Telegram startup error: {type(e).__name__}: {e}")
+            print(
+                f"Telegram startup error: "
+                f"{type(e).__name__}: {e}"
+            )
             raise
 
     client(
