@@ -65,6 +65,8 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
             )
             raise
 
+    print("SETTING BOT COMMANDS...")
+
     client(
         functions.bots.SetBotCommandsRequest(
             scope=types.BotCommandScopeDefault(),
@@ -79,11 +81,14 @@ def start_bot(API_ID: int, API_HASH: str, name: str, token: str):
         )
     )
 
+    print("BOT COMMANDS SET.")
+
     for key, val in ALL_EVENTS.items():
         print(f"Adding event {key}")
         client.add_event_handler(*val)
 
     print(f"Started bot {name}")
+
     client.run_until_disconnected()
 
 
