@@ -18,8 +18,9 @@ from telewater.utils import cleanup, get_args, gen_kv_str, stamp
 WATERMARK_TEXT = "ETERNAL CIVIL ACADEMY"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
 
-# 25% opacity
-WATERMARK_OPACITY = 64
+# 30% opacity
+# 255 x 0.30 = 76.5 -> 77
+WATERMARK_OPACITY = 77
 
 # Slightly tilted
 WATERMARK_ANGLE = -12
@@ -37,14 +38,13 @@ def create_text_watermark(
     """
     Create a responsive text watermark.
 
-    The watermark size is calculated from the original
-    media dimensions so it does not become excessively
-    large on smaller images.
+    The watermark size is calculated from the
+    original media dimensions so it does not
+    become excessively large on smaller images.
     """
 
     # -----------------------------------------------------
-    # Watermark width = about 65% of original media width.
-    # This keeps the complete text visible.
+    # Watermark width
     # -----------------------------------------------------
 
     watermark_width = int(media_width * 0.65)
@@ -54,18 +54,31 @@ def create_text_watermark(
     watermark_width = min(1800, watermark_width)
 
     # -----------------------------------------------------
-    # Font sizes based on watermark width.
+    # Font sizes
+    # 20% larger than the previous version
+    #
+    # Previous:
+    # title    = 0.065
+    # username = 0.034
+    #
+    # New:
+    # title    = 0.078
+    # username = 0.0408
     # -----------------------------------------------------
 
     title_size = max(
         32,
-        int(watermark_width * 0.065),
+        int(watermark_width * 0.078),
     )
 
     username_size = max(
         22,
-        int(watermark_width * 0.034),
+        int(watermark_width * 0.0408),
     )
+
+    # -----------------------------------------------------
+    # Font
+    # -----------------------------------------------------
 
     font_path = (
         "/usr/share/fonts/truetype/dejavu/"
@@ -83,7 +96,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Create temporary drawing layer.
+    # Create transparent drawing layer
     # -----------------------------------------------------
 
     temp_height = int(
@@ -104,7 +117,7 @@ def create_text_watermark(
     draw = ImageDraw.Draw(layer)
 
     # -----------------------------------------------------
-    # Calculate title size.
+    # Main text dimensions
     # -----------------------------------------------------
 
     title_bbox = draw.textbbox(
@@ -171,8 +184,7 @@ def create_text_watermark(
     )
 
     username_x = (
-        watermark_width
-        - username_width
+        watermark_width - username_width
     ) // 2
 
     username_y = (
@@ -204,8 +216,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Rotate slightly.
-    # expand=True prevents text from being cut.
+    # Rotate slightly
     # -----------------------------------------------------
 
     rotated = layer.rotate(
@@ -215,8 +226,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Make sure rotated watermark is not unnecessarily
-    # larger than the original media.
+    # Keep watermark within reasonable size
     # -----------------------------------------------------
 
     max_width = int(
@@ -253,13 +263,17 @@ def create_text_watermark(
             Image.Resampling.LANCZOS,
         )
 
+    # -----------------------------------------------------
+    # Save watermark
+    # -----------------------------------------------------
+
     rotated.save(
         filename,
         "PNG",
     )
 
     print(
-        "25% opacity responsive text watermark "
+        "30% opacity responsive text watermark "
         "created successfully.",
         flush=True,
     )
@@ -526,7 +540,7 @@ async def watermarker(event):
 
         try:
 
-            # For photos, PIL can directly read dimensions.
+            # For photos, use the real dimensions.
             if event.photo:
 
                 with Image.open(
@@ -539,8 +553,7 @@ async def watermarker(event):
 
             else:
 
-                # For videos/GIFs, use a safe default.
-                # The watermark is still kept reasonably sized.
+                # Safe default for videos/GIFs.
                 media_width = 1280
                 media_height = 720
 
@@ -581,6 +594,12 @@ async def watermarker(event):
             )
 
             return
+
+        print(
+            f"Text watermark ready: "
+            f"{watermark_file}",
+            flush=True,
+        )
 
         # -------------------------------------------------
         # Apply watermark
