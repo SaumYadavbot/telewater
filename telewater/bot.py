@@ -1,6 +1,7 @@
 """Telegram event handlers for Telewater."""
 
 import os
+import math
 
 from telethon import events
 from PIL import Image, ImageDraw, ImageFont
@@ -25,6 +26,10 @@ WATERMARK_OPACITY = 153
 # Slightly tilted
 WATERMARK_ANGLE = -15
 
+# Watermark diagonal will be approximately 75%
+# of the original media diagonal.
+WATERMARK_DIAGONAL_RATIO = 0.75
+
 
 # =========================================================
 # CREATE TEXT WATERMARK
@@ -36,44 +41,28 @@ def create_text_watermark(
     filename="text_watermark.png",
 ):
     """
-    Create a large responsive text watermark.
+    Create a large diagonal-based text watermark.
 
-    The watermark uses approximately 75% of the
-    original image width and automatically adjusts
-    the font so the complete text is never clipped.
+    The final rotated watermark occupies approximately
+    75% of the original media diagonal.
+
+    The complete text is always fitted inside the
+    watermark layer so that no letters are clipped.
     """
 
     # -----------------------------------------------------
-    # WATERMARK WIDTH
+    # ORIGINAL MEDIA DIAGONAL
     # -----------------------------------------------------
-    # Watermark will occupy approximately 75% of the
-    # original media width.
 
-    watermark_width = int(media_width * 0.75)
-
-    # Safety limits
-    watermark_width = max(500, watermark_width)
-    watermark_width = min(2000, watermark_width)
-
-    # -----------------------------------------------------
-    # FONT SIZE
-    # -----------------------------------------------------
-    # Original title size was approximately:
-    # 0.065
-    #
-    # New target:
-    # 0.0845
-    #
-    # This is approximately 30% larger than original.
-
-    title_size = max(
-        32,
-        int(watermark_width * 0.0845),
+    media_diagonal = math.sqrt(
+        (media_width ** 2)
+        + (media_height ** 2)
     )
 
-    username_size = max(
-        22,
-        int(watermark_width * 0.0442),
+    # Target watermark diagonal
+    target_diagonal = (
+        media_diagonal
+        * WATERMARK_DIAGONAL_RATIO
     )
 
     # -----------------------------------------------------
@@ -86,23 +75,72 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # AUTO-FIT TITLE
+    # INITIAL WATERMARK SIZE
     # -----------------------------------------------------
-    # Never allow:
     #
-    # ETERNAL CIVIL ACADEMY
+    # Start with a large canvas.
+    # The final size will be calculated from the
+    # diagonal after rotation.
     #
-    # to be cut from either side.
 
-    test_layer = Image.new(
+    watermark_width = int(
+        media_width * 0.90
+    )
+
+    watermark_width = max(
+        watermark_width,
+        600,
+    )
+
+    watermark_width = min(
+        watermark_width,
+        2400,
+    )
+
+    # -----------------------------------------------------
+    # FONT SIZE
+    # -----------------------------------------------------
+    #
+    # Original title ratio was 0.065.
+    # New target is approximately 30% larger:
+    #
+    # 0.065 x 1.30 = 0.0845
+    #
+
+    title_size = max(
+        32,
+        int(watermark_width * 0.0845),
+    )
+
+    username_size = max(
+        22,
+        int(watermark_width * 0.0442),
+    )
+
+    # -----------------------------------------------------
+    # TEMP DRAWING OBJECT FOR MEASUREMENT
+    # -----------------------------------------------------
+
+    measure_layer = Image.new(
         "RGBA",
         (1, 1),
         (255, 255, 255, 0),
     )
 
-    test_draw = ImageDraw.Draw(
-        test_layer
+    measure_draw = ImageDraw.Draw(
+        measure_layer
     )
+
+    # -----------------------------------------------------
+    # FIT COMPLETE TITLE
+    # -----------------------------------------------------
+    #
+    # This makes sure the complete:
+    #
+    # ETERNAL CIVIL ACADEMY
+    #
+    # fits inside the watermark.
+    #
 
     while True:
 
@@ -111,26 +149,28 @@ def create_text_watermark(
             title_size,
         )
 
-        test_bbox = test_draw.textbbox(
+        title_bbox = measure_draw.textbbox(
             (0, 0),
             WATERMARK_TEXT,
             font=test_font,
             stroke_width=2,
         )
 
-        test_width = (
-            test_bbox[2]
-            - test_bbox[0]
+        title_width = (
+            title_bbox[2]
+            - title_bbox[0]
         )
 
-        # 60 pixel total safety margin
         if (
-            test_width <= watermark_width - 60
-            or title_size <= 32
+            title_width
+            <= watermark_width - 80
         ):
             break
 
         title_size -= 1
+
+        if title_size <= 32:
+            break
 
     title_font = ImageFont.truetype(
         font_path,
@@ -143,31 +183,10 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # CREATE TRANSPARENT LAYER
+    # GET TITLE DIMENSIONS
     # -----------------------------------------------------
 
-    temp_height = int(
-        title_size * 2.8
-        + username_size * 1.8
-        + 100
-    )
-
-    layer = Image.new(
-        "RGBA",
-        (
-            watermark_width,
-            temp_height,
-        ),
-        (255, 255, 255, 0),
-    )
-
-    draw = ImageDraw.Draw(layer)
-
-    # -----------------------------------------------------
-    # TITLE DIMENSIONS
-    # -----------------------------------------------------
-
-    title_bbox = draw.textbbox(
+    title_bbox = measure_draw.textbbox(
         (0, 0),
         WATERMARK_TEXT,
         font=title_font,
@@ -185,7 +204,53 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # PERFECT CENTERING
+    # USERNAME DIMENSIONS
+    # -----------------------------------------------------
+
+    username_bbox = measure_draw.textbbox(
+        (0, 0),
+        WATERMARK_USERNAME,
+        font=username_font,
+        stroke_width=1,
+    )
+
+    username_width = (
+        username_bbox[2]
+        - username_bbox[0]
+    )
+
+    username_height = (
+        username_bbox[3]
+        - username_bbox[1]
+    )
+
+    # -----------------------------------------------------
+    # CANVAS HEIGHT
+    # -----------------------------------------------------
+
+    temp_height = int(
+        title_height
+        + username_height
+        + 80
+    )
+
+    # -----------------------------------------------------
+    # CREATE TRANSPARENT LAYER
+    # -----------------------------------------------------
+
+    layer = Image.new(
+        "RGBA",
+        (
+            watermark_width,
+            temp_height,
+        ),
+        (255, 255, 255, 0),
+    )
+
+    draw = ImageDraw.Draw(layer)
+
+    # -----------------------------------------------------
+    # CENTER TITLE
     # -----------------------------------------------------
 
     title_x = (
@@ -194,10 +259,6 @@ def create_text_watermark(
     ) // 2
 
     title_y = 20
-
-    # -----------------------------------------------------
-    # MAIN WATERMARK TEXT
-    # -----------------------------------------------------
 
     draw.text(
         (
@@ -222,20 +283,8 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # USERNAME
+    # CENTER USERNAME
     # -----------------------------------------------------
-
-    username_bbox = draw.textbbox(
-        (0, 0),
-        WATERMARK_USERNAME,
-        font=username_font,
-        stroke_width=1,
-    )
-
-    username_width = (
-        username_bbox[2]
-        - username_bbox[0]
-    )
 
     username_x = (
         watermark_width
@@ -281,29 +330,25 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # FINAL SIZE CONTROL
+    # CURRENT WATERMARK DIAGONAL
     # -----------------------------------------------------
-    # Keep the watermark approximately 75% of the
-    # original image width.
-    #
-    # A generous height limit is used so the watermark
-    # does not become unnecessarily small.
 
-    max_width = int(
-        media_width * 0.78
+    current_diagonal = math.sqrt(
+        (rotated.width ** 2)
+        + (rotated.height ** 2)
     )
 
-    max_height = int(
-        media_height * 0.45
-    )
+    # -----------------------------------------------------
+    # SCALE TO EXACTLY APPROXIMATELY 75%
+    # OF ORIGINAL MEDIA DIAGONAL
+    # -----------------------------------------------------
 
-    scale = min(
-        1.0,
-        max_width / rotated.width,
-        max_height / rotated.height,
-    )
+    if current_diagonal > 0:
 
-    if scale < 1.0:
+        scale = (
+            target_diagonal
+            / current_diagonal
+        )
 
         new_width = max(
             1,
@@ -324,7 +369,41 @@ def create_text_watermark(
         )
 
     # -----------------------------------------------------
-    # SAVE WATERMARK
+    # FINAL SAFETY CHECK
+    # -----------------------------------------------------
+    #
+    # The watermark itself is never allowed to exceed
+    # the target diagonal.
+    #
+
+    final_diagonal = math.sqrt(
+        (rotated.width ** 2)
+        + (rotated.height ** 2)
+    )
+
+    if final_diagonal > target_diagonal:
+
+        scale = (
+            target_diagonal
+            / final_diagonal
+        )
+
+        rotated = rotated.resize(
+            (
+                max(
+                    1,
+                    int(rotated.width * scale),
+                ),
+                max(
+                    1,
+                    int(rotated.height * scale),
+                ),
+            ),
+            Image.Resampling.LANCZOS,
+        )
+
+    # -----------------------------------------------------
+    # SAVE
     # -----------------------------------------------------
 
     rotated.save(
@@ -333,8 +412,9 @@ def create_text_watermark(
     )
 
     print(
-        "60% opacity, large 75% width responsive "
-        "text watermark created successfully.",
+        "60% opacity watermark created. "
+        "Watermark diagonal is approximately "
+        "75% of original media diagonal.",
         flush=True,
     )
 
@@ -600,7 +680,6 @@ async def watermarker(event):
 
         try:
 
-            # For photos, use real dimensions.
             if event.photo:
 
                 with Image.open(
@@ -613,7 +692,6 @@ async def watermarker(event):
 
             else:
 
-                # Safe default for videos/GIFs.
                 media_width = 1280
                 media_height = 720
 
@@ -633,7 +711,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # CREATE LARGE TEXT WATERMARK
+        # CREATE LARGE DIAGONAL WATERMARK
         # -------------------------------------------------
 
         watermark_file = (
@@ -773,7 +851,7 @@ async def watermarker(event):
     finally:
 
         # -------------------------------------------------
-        # CLEAN UP ONLY VALID FILE PATHS
+        # CLEAN UP
         # -------------------------------------------------
 
         cleanup(
