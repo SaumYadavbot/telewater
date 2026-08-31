@@ -18,8 +18,9 @@ from telewater.utils import cleanup, get_args, gen_kv_str, stamp
 WATERMARK_TEXT = "ETERNAL CIVIL ACADEMY"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
 
-# Approximately 40% opacity
-WATERMARK_OPACITY = 102
+# Approximately 60% opacity
+# 255 x 0.60 = 153
+WATERMARK_OPACITY = 153
 
 # Slightly tilted
 WATERMARK_ANGLE = -15
@@ -35,34 +36,35 @@ def create_text_watermark(
     filename="text_watermark.png",
 ):
     """
-    Create a responsive text watermark.
+    Create a large responsive text watermark.
 
-    Text is targeted to be at least 30% larger than
-    the original version, while automatically fitting
-    the complete text so no letters are clipped.
+    The watermark uses approximately 75% of the
+    original image width and automatically adjusts
+    the font so the complete text is never clipped.
     """
 
     # -----------------------------------------------------
-    # Watermark width
+    # WATERMARK WIDTH
     # -----------------------------------------------------
+    # Watermark will occupy approximately 75% of the
+    # original media width.
 
-    watermark_width = int(media_width * 0.65)
+    watermark_width = int(media_width * 0.75)
 
     # Safety limits
     watermark_width = max(500, watermark_width)
-    watermark_width = min(1800, watermark_width)
+    watermark_width = min(2000, watermark_width)
 
     # -----------------------------------------------------
-    # Font sizes
-    # At least 30% larger than original
-    #
-    # Original title    = 0.065
-    # Original username = 0.034
+    # FONT SIZE
+    # -----------------------------------------------------
+    # Original title size was approximately:
+    # 0.065
     #
     # New target:
-    # title    = 0.0845
-    # username = 0.0442
-    # -----------------------------------------------------
+    # 0.0845
+    #
+    # This is approximately 30% larger than original.
 
     title_size = max(
         32,
@@ -75,7 +77,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Font
+    # FONT
     # -----------------------------------------------------
 
     font_path = (
@@ -84,30 +86,29 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # IMPORTANT:
-    # Automatically reduce ONLY if the complete title
-    # does not fit. This prevents:
+    # AUTO-FIT TITLE
+    # -----------------------------------------------------
+    # Never allow:
     #
     # ETERNAL CIVIL ACADEMY
     #
-    # from being clipped on either side.
-    # -----------------------------------------------------
+    # to be cut from either side.
+
+    test_layer = Image.new(
+        "RGBA",
+        (1, 1),
+        (255, 255, 255, 0),
+    )
+
+    test_draw = ImageDraw.Draw(
+        test_layer
+    )
 
     while True:
 
         test_font = ImageFont.truetype(
             font_path,
             title_size,
-        )
-
-        test_layer = Image.new(
-            "RGBA",
-            (1, 1),
-            (255, 255, 255, 0),
-        )
-
-        test_draw = ImageDraw.Draw(
-            test_layer
         )
 
         test_bbox = test_draw.textbbox(
@@ -122,9 +123,9 @@ def create_text_watermark(
             - test_bbox[0]
         )
 
-        # 40px safety margin
+        # 60 pixel total safety margin
         if (
-            test_width <= watermark_width - 40
+            test_width <= watermark_width - 60
             or title_size <= 32
         ):
             break
@@ -142,13 +143,13 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Create transparent drawing layer
+    # CREATE TRANSPARENT LAYER
     # -----------------------------------------------------
 
     temp_height = int(
         title_size * 2.8
         + username_size * 1.8
-        + 80
+        + 100
     )
 
     layer = Image.new(
@@ -163,7 +164,7 @@ def create_text_watermark(
     draw = ImageDraw.Draw(layer)
 
     # -----------------------------------------------------
-    # Main text dimensions
+    # TITLE DIMENSIONS
     # -----------------------------------------------------
 
     title_bbox = draw.textbbox(
@@ -183,6 +184,10 @@ def create_text_watermark(
         - title_bbox[1]
     )
 
+    # -----------------------------------------------------
+    # PERFECT CENTERING
+    # -----------------------------------------------------
+
     title_x = (
         watermark_width
         - title_width
@@ -191,7 +196,7 @@ def create_text_watermark(
     title_y = 20
 
     # -----------------------------------------------------
-    # Main watermark text
+    # MAIN WATERMARK TEXT
     # -----------------------------------------------------
 
     draw.text(
@@ -217,7 +222,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Username
+    # USERNAME
     # -----------------------------------------------------
 
     username_bbox = draw.textbbox(
@@ -240,7 +245,7 @@ def create_text_watermark(
     username_y = (
         title_y
         + title_height
-        + 12
+        + 14
     )
 
     draw.text(
@@ -266,7 +271,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Rotate slightly
+    # ROTATE
     # -----------------------------------------------------
 
     rotated = layer.rotate(
@@ -276,15 +281,20 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # Keep watermark within reasonable size
+    # FINAL SIZE CONTROL
     # -----------------------------------------------------
+    # Keep the watermark approximately 75% of the
+    # original image width.
+    #
+    # A generous height limit is used so the watermark
+    # does not become unnecessarily small.
 
     max_width = int(
         media_width * 0.78
     )
 
     max_height = int(
-        media_height * 0.35
+        media_height * 0.45
     )
 
     scale = min(
@@ -314,7 +324,7 @@ def create_text_watermark(
         )
 
     # -----------------------------------------------------
-    # Save watermark
+    # SAVE WATERMARK
     # -----------------------------------------------------
 
     rotated.save(
@@ -323,7 +333,7 @@ def create_text_watermark(
     )
 
     print(
-        "40% opacity, 30%+ larger responsive "
+        "60% opacity, large 75% width responsive "
         "text watermark created successfully.",
         flush=True,
     )
@@ -553,7 +563,7 @@ async def watermarker(event):
     try:
 
         # -------------------------------------------------
-        # Download original media
+        # DOWNLOAD ORIGINAL MEDIA
         # -------------------------------------------------
 
         downloaded_file = (
@@ -582,7 +592,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Get original media dimensions
+        # GET ORIGINAL MEDIA DIMENSIONS
         # -------------------------------------------------
 
         media_width = 1280
@@ -590,7 +600,7 @@ async def watermarker(event):
 
         try:
 
-            # For photos, use the real dimensions.
+            # For photos, use real dimensions.
             if event.photo:
 
                 with Image.open(
@@ -623,7 +633,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Create responsive text watermark
+        # CREATE LARGE TEXT WATERMARK
         # -------------------------------------------------
 
         watermark_file = (
@@ -652,7 +662,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Apply watermark
+        # APPLY WATERMARK
         # -------------------------------------------------
 
         file = File(
@@ -689,7 +699,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Preserve original caption
+        # PRESERVE ORIGINAL CAPTION
         # -------------------------------------------------
 
         caption = (
@@ -698,7 +708,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Send to SAME CHANNEL
+        # SEND TO SAME CHANNEL
         # -------------------------------------------------
 
         sent_message = (
@@ -717,7 +727,7 @@ async def watermarker(event):
         )
 
         # -------------------------------------------------
-        # Delete ORIGINAL message
+        # DELETE ORIGINAL MESSAGE
         # -------------------------------------------------
 
         try:
@@ -763,7 +773,7 @@ async def watermarker(event):
     finally:
 
         # -------------------------------------------------
-        # Clean up only valid file paths.
+        # CLEAN UP ONLY VALID FILE PATHS
         # -------------------------------------------------
 
         cleanup(
