@@ -2,6 +2,7 @@
 
 import os
 import math
+import asyncio
 
 from telethon import events
 from PIL import Image, ImageDraw, ImageFont
@@ -10,6 +11,61 @@ from watermark import File, Watermark, apply_watermark
 
 from telewater import conf
 from telewater.utils import cleanup, get_args, gen_kv_str, stamp
+
+
+# =========================================================
+# TELEGRAM CONNECTION WATCHDOG
+# =========================================================
+
+_connection_watchdog_task = None
+
+
+async def _telegram_connection_watchdog(client):
+    """Keep checking the Telethon connection and reconnect if needed."""
+
+    while True:
+
+        try:
+
+            if not client.is_connected():
+
+                print(
+                    "TELEGRAM CONNECTION LOST. "
+                    "ATTEMPTING RECONNECT...",
+                    flush=True,
+                )
+
+                await client.connect()
+
+                print(
+                    "TELEGRAM RECONNECTED SUCCESSFULLY.",
+                    flush=True,
+                )
+
+        except Exception as reconnect_error:
+
+            print(
+                "TELEGRAM RECONNECT ERROR: "
+                f"{type(reconnect_error).__name__}: "
+                f"{reconnect_error}",
+                flush=True,
+            )
+
+        await asyncio.sleep(30)
+
+
+def _start_connection_watchdog(client):
+    """Start one connection watchdog task for this client."""
+
+    global _connection_watchdog_task
+
+    if (
+        _connection_watchdog_task is None
+        or _connection_watchdog_task.done()
+    ):
+        _connection_watchdog_task = asyncio.create_task(
+            _telegram_connection_watchdog(client)
+        )
 
 
 # =========================================================
@@ -523,6 +579,8 @@ def prepare_high_quality_image(
 
 async def start(event):
 
+    _start_connection_watchdog(event.client)
+
     await event.respond(
         conf.START
     )
@@ -535,6 +593,8 @@ async def start(event):
 # =========================================================
 
 async def bot_help(event):
+
+    _start_connection_watchdog(event.client)
 
     try:
 
@@ -552,6 +612,8 @@ async def bot_help(event):
 # =========================================================
 
 async def set_config(event):
+
+    _start_connection_watchdog(event.client)
 
     notes = f"""
 This command is used to set the value of a config variable.
@@ -653,6 +715,8 @@ Example:
 
 async def get_config(event):
 
+    _start_connection_watchdog(event.client)
+
     notes = f"""
 This command is used to get the value of a configuration variable.
 
@@ -719,6 +783,8 @@ async def watermarker(event):
         or event.gif
     ):
         return
+
+    _start_connection_watchdog(event.client)
 
     print(
         "========================================",
@@ -939,69 +1005,45 @@ async def watermarker(event):
                 )
 
         # -------------------------------------------------
-# REPLACE ORIGINAL MEDIA IN THE SAME MESSAGE
-# -------------------------------------------------
-#
-# IMPORTANT:
-# We intentionally DO NOT provide caption/text here.
-#
-# Telegram will keep the existing caption exactly as it
-# already is, including its formatting/entities.
-#
-# The original message ID remains the same.
-# Only the media is replaced.
-#
-
-try:
-
-    await event.client.edit_message(
-        event.chat_id,
-        event.id,
-        file=out_file,
-    )
-
-    print(
-        f"Original message media replaced successfully: "
-        f"chat={event.chat_id}, "
-        f"message={event.id}",
-        flush=True,
-    )
-
-except Exception as edit_error:
-
-    print(
-        "ORIGINAL MESSAGE MEDIA REPLACE FAILED: "
-        f"{type(edit_error).__name__}: "
-        f"{edit_error}",
-        flush=True,
-    )
-
-    # IMPORTANT:
-    # Do NOT delete the original message if editing fails.
-    # This prevents accidental loss of the original post.
-    return
+        # REPLACE ORIGINAL MEDIA IN THE SAME MESSAGE
+        # -------------------------------------------------
+        #
+        # The original Telegram message is edited in-place.
+        # No new message is sent and the original message is
+        # never deleted.
+        #
+        # IMPORTANT: We intentionally do not pass text/caption
+        # or formatting_entities. Telegram will keep the
+        # existing message text/entities while replacing only
+        # the media.
+        #
 
         try:
 
-            await event.client.delete_messages(
+            await event.client.edit_message(
                 event.chat_id,
                 event.id,
+                file=out_file,
             )
 
             print(
-                f"Original message deleted: "
-                f"{event.id}",
+                f"Original message media replaced successfully: "
+                f"chat={event.chat_id}, "
+                f"message={event.id}",
                 flush=True,
             )
 
-        except Exception as delete_error:
+        except Exception as edit_error:
 
             print(
-                "ORIGINAL MESSAGE DELETE FAILED: "
-                f"{type(delete_error).__name__}: "
-                f"{delete_error}",
+                "ORIGINAL MESSAGE MEDIA REPLACE FAILED: "
+                f"{type(edit_error).__name__}: "
+                f"{edit_error}",
                 flush=True,
             )
+
+            # Never delete the original post if replacement fails.
+            return
 
     except Exception as err:
 
