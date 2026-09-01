@@ -939,36 +939,47 @@ async def watermarker(event):
                 )
 
         # -------------------------------------------------
-        # PRESERVE ORIGINAL CAPTION
-        # -------------------------------------------------
+# REPLACE ORIGINAL MEDIA IN THE SAME MESSAGE
+# -------------------------------------------------
+#
+# IMPORTANT:
+# We intentionally DO NOT provide caption/text here.
+#
+# Telegram will keep the existing caption exactly as it
+# already is, including its formatting/entities.
+#
+# The original message ID remains the same.
+# Only the media is replaced.
+#
 
-        caption = (
-            event.message.message
-            or None
-        )
+try:
 
-        # -------------------------------------------------
-        # SEND TO SAME CHANNEL
-        # -------------------------------------------------
+    await event.client.edit_message(
+        event.chat_id,
+        event.id,
+        file=out_file,
+    )
 
-        sent_message = (
-            await event.client.send_file(
-                event.chat_id,
-                out_file,
-                caption=caption,
-            )
-        )
+    print(
+        f"Original message media replaced successfully: "
+        f"chat={event.chat_id}, "
+        f"message={event.id}",
+        flush=True,
+    )
 
-        print(
-            f"Watermarked media sent: "
-            f"chat={event.chat_id}, "
-            f"message={sent_message.id}",
-            flush=True,
-        )
+except Exception as edit_error:
 
-        # -------------------------------------------------
-        # DELETE ORIGINAL MESSAGE
-        # -------------------------------------------------
+    print(
+        "ORIGINAL MESSAGE MEDIA REPLACE FAILED: "
+        f"{type(edit_error).__name__}: "
+        f"{edit_error}",
+        flush=True,
+    )
+
+    # IMPORTANT:
+    # Do NOT delete the original message if editing fails.
+    # This prevents accidental loss of the original post.
+    return
 
         try:
 
