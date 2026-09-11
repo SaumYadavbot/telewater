@@ -72,7 +72,6 @@ def _start_connection_watchdog(client):
 # TEXT WATERMARK SETTINGS
 # =========================================================
 
-WATERMARK_TEXT = "ETERNAL CIVIL ACADEMY"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
 
 # Approximately 60% opacity
