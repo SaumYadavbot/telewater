@@ -72,8 +72,9 @@ def _start_connection_watchdog(client):
 # TEXT WATERMARK SETTINGS
 # =========================================================
 
-WATERMARK_TEXT = "@EternalCivilAcademy"
-
+WATERMARK_NAME = "JOIN"
+WATERMARK_USERNAME = "@EternalCivilAcademy"
+WATERMARK_TEXT = f"{WATERMARK_NAME} {WATERMARK_USERNAME}"
 # Approximately 60% opacity
 # 255 x 0.60 = 153
 WATERMARK_OPACITY = 153
@@ -82,7 +83,7 @@ WATERMARK_OPACITY = 153
 WATERMARK_ANGLE = -15
 
 # Visible watermark diagonal:
-# approximately 75% of original image diagonal
+# approximately 60% of original image diagonal
 WATERMARK_DIAGONAL_RATIO = 0.60
 
 # Render watermark at 4K resolution before scaling
@@ -108,7 +109,7 @@ def create_text_watermark(
     - 60% opacity
     - 30%+ larger text target
     - Complete title always visible
-    - Visible watermark diagonal approximately 75%
+    - Visible watermark diagonal approximately 60%
       of the original image diagonal
     - Rendered at 4K before final scaling
     """
