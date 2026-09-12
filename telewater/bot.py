@@ -140,7 +140,7 @@ def create_text_watermark(
     # 30% larger = 0.0845
 
     title_size = int(
-        canvas_width * 0.0845
+        canvas_width * 0.0545
     )
 
     username_size = int(
