@@ -74,7 +74,12 @@ def _start_connection_watchdog(client):
 
 WATERMARK_NAME = "JOIN"
 WATERMARK_USERNAME = "@EternalCivilAcademy"
-WATERMARK_TEXT = f"{WATERMARK_NAME} {WATERMARK_USERNAME}"
+
+# IMPORTANT:
+# Only the username is used as the visible watermark.
+# This prevents "JOIN @EternalCivilAcademy" from appearing.
+WATERMARK_TEXT = WATERMARK_USERNAME
+
 # Approximately 60% opacity
 # 255 x 0.60 = 153
 WATERMARK_OPACITY = 153
@@ -243,13 +248,6 @@ def create_text_watermark(
     # -----------------------------------------------------
     # TIGHT CANVAS AROUND TEXT
     # -----------------------------------------------------
-    #
-    # Important:
-    # We don't use a huge transparent canvas for the
-    # final diagonal calculation.
-    #
-    # This means the ACTUAL visible watermark becomes
-    # approximately 75% of the image diagonal.
 
     padding_x = 120
     padding_y = 100
@@ -262,10 +260,9 @@ def create_text_watermark(
         + (padding_x * 2)
     )
 
+    # Only one visible line is drawn now.
     layer_height = (
         title_height
-        + username_height
-        + 80
         + (padding_y * 2)
     )
 
@@ -283,7 +280,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # TITLE
+    # WATERMARK
     # -----------------------------------------------------
 
     title_x = (
@@ -315,42 +312,6 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # USERNAME
-    # -----------------------------------------------------
-
-    username_x = (
-        layer_width - username_width
-    ) // 2
-
-    username_y = (
-        title_y
-        + title_height
-        + 30
-    )
-
-    draw.text(
-        (
-            username_x,
-            username_y,
-        ),
-        WATERMARK_USERNAME,
-        font=username_font,
-        fill=(
-            255,
-            255,
-            255,
-            WATERMARK_OPACITY,
-        ),
-        stroke_width=4,
-        stroke_fill=(
-            0,
-            0,
-            0,
-            WATERMARK_OPACITY,
-        ),
-    )
-
-    # -----------------------------------------------------
     # ROTATE AT HIGH RESOLUTION
     # -----------------------------------------------------
 
@@ -363,9 +324,6 @@ def create_text_watermark(
     # -----------------------------------------------------
     # REMOVE EXCESS TRANSPARENT BORDER
     # -----------------------------------------------------
-    #
-    # This makes diagonal calculation based on the actual
-    # visible watermark rather than an oversized canvas.
 
     alpha = rotated.getchannel("A")
 
@@ -405,7 +363,7 @@ def create_text_watermark(
     )
 
     # -----------------------------------------------------
-    # SCALE WATERMARK TO 75% DIAGONAL
+    # SCALE WATERMARK TO TARGET DIAGONAL
     # -----------------------------------------------------
 
     if current_diagonal > 0:
@@ -452,7 +410,7 @@ def create_text_watermark(
     print(
         "High-resolution watermark created: "
         "60% opacity | 30%+ larger text | "
-        "75% diagonal",
+        "single username watermark",
         flush=True,
     )
 
@@ -704,6 +662,10 @@ Example:
             flush=True,
         )
 
+        await event.respond(
+            str(err)
+        )
+
     finally:
 
         raise events.StopPropagation
@@ -951,7 +913,7 @@ async def watermarker(event):
         # -------------------------------------------------
         # HIGH QUALITY PHOTO PROCESSING
         # -------------------------------------------------
-        #
+
         # Only photos are processed here.
         #
         # Videos/GIFs continue using the existing
@@ -983,6 +945,7 @@ async def watermarker(event):
                         )
 
                     except OSError:
+
                         pass
 
                     out_file = (
@@ -1007,7 +970,7 @@ async def watermarker(event):
         # -------------------------------------------------
         # REPLACE ORIGINAL MEDIA IN THE SAME MESSAGE
         # -------------------------------------------------
-        #
+
         # The original Telegram message is edited in-place.
         # No new message is sent and the original message is
         # never deleted.
@@ -1016,7 +979,6 @@ async def watermarker(event):
         # or formatting_entities. Telegram will keep the
         # existing message text/entities while replacing only
         # the media.
-        #
 
         try:
 
