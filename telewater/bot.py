@@ -80,9 +80,9 @@ WATERMARK_USERNAME = "@EternalCivilAcademy"
 # This prevents "JOIN @EternalCivilAcademy" from appearing.
 WATERMARK_TEXT = WATERMARK_USERNAME
 
-# Approximately 60% opacity
+# Approximately 50% opacity
 # 255 x 0.60 = 153
-WATERMARK_OPACITY = 153
+WATERMARK_OPACITY = 130
 
 # Slightly tilted
 WATERMARK_ANGLE = -15
